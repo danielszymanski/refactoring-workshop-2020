@@ -8,32 +8,36 @@
 
 namespace Snake
 {
-ConfigurationError::ConfigurationError()
-    : std::logic_error("Bad configuration of Snake::Controller.")
-{}
+    ConfigurationError::ConfigurationError()
+        : std::logic_error("Bad configuration of Snake::Controller.")
+    {
+    }
 
-UnexpectedEventException::UnexpectedEventException()
-    : std::runtime_error("Unexpected event received!")
-{}
+    UnexpectedEventException::UnexpectedEventException()
+        : std::runtime_error("Unexpected event received!")
+    {
+    }
 
-Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePort, std::string const& p_config)
-    : m_displayPort(p_displayPort),
-      m_foodPort(p_foodPort),
-      m_scorePort(p_scorePort)
-{
-    std::istringstream istr(p_config);
-    char w, f, s, d;
+    Controller::Controller(IPort &p_displayPort, IPort &p_foodPort, IPort &p_scorePort, std::string const &p_config)
+        : m_displayPort(p_displayPort),
+          m_foodPort(p_foodPort),
+          m_scorePort(p_scorePort)
+    {
+        std::istringstream istr(p_config);
+        char w, f, s, d;
 
-    int width, height, length;
-    int foodX, foodY;
-    istr >> w >> width >> height >> f >> foodX >> foodY >> s;
+        int width, height, length;
+        int foodX, foodY;
+        istr >> w >> width >> height >> f >> foodX >> foodY >> s;
 
-    if (w == 'W' and f == 'F' and s == 'S') {
-        m_mapDimension = std::make_pair(width, height);
-        m_foodPosition = std::make_pair(foodX, foodY);
+        if (w == 'W' and f == 'F' and s == 'S')
+        {
+            m_mapDimension = std::make_pair(width, height);
+            m_foodPosition = std::make_pair(foodX, foodY);
 
-        istr >> d;
-        switch (d) {
+            istr >> d;
+            switch (d)
+            {
             case 'U':
                 m_currentDirection = Direction_UP;
                 break;
@@ -48,65 +52,86 @@ Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePo
                 break;
             default:
                 throw ConfigurationError();
-        }
-        istr >> length;
+            }
+            istr >> length;
 
-        while (length) {
-            Segment seg;
-            istr >> seg.x >> seg.y;
-            seg.ttl = length--;
+            while (length)
+            {
+                Segment seg;
+                istr >> seg.x >> seg.y;
+                seg.ttl = length--;
 
-            m_segments.push_back(seg);
+                m_segments.push_back(seg);
+            }
         }
-    } else {
-        throw ConfigurationError();
+        else
+        {
+            throw ConfigurationError();
+        }
     }
-}
 
-Controller::Segment Controller::getNewHead(const Segment& currentHead)
-{
-    Segment newHead;
+    Controller::Segment Controller::getNewHead(const Segment &currentHead)
+    {
+        Segment newHead;
 
-    newHead.x = currentHead.x + ((m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0);
-    newHead.y = currentHead.y + (not (m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0);
-    newHead.ttl = currentHead.ttl;
+        newHead.x = currentHead.x + ((m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0);
+        newHead.y = currentHead.y + (not(m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0);
+        newHead.ttl = currentHead.ttl;
 
-    return newHead;
-}
+        return newHead;
+    }
 
-bool Controller::checkIfGameIsLost(const Segment& newHead)
-{
-    for (auto segment : m_segments) {
-        if (segment.x == newHead.x and segment.y == newHead.y) {
-            m_scorePort.send(std::make_unique<EventT<LooseInd>>());
+    bool Controller::isHittingHimself(const Segment &newHead)
+    {
+        for (auto segment : m_segments)
+        {
+            if (segment.x == newHead.x and segment.y == newHead.y)
+            {
+                m_scorePort.send(std::make_unique<EventT<LooseInd>>());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Controller::isOutOfBounds(const Segment &newHead)
+    {
+        if (newHead.x < 0 or newHead.y < 0 or
+            newHead.x >= m_mapDimension.first or
+            newHead.y >= m_mapDimension.second)
             return true;
-        }
-    }
     return false;
-}
+} // namespace Snake
 
 void Controller::receive(std::unique_ptr<Event> e)
 {
-    try {
-        auto const& timerEvent = *dynamic_cast<EventT<TimeoutInd> const&>(*e);
+    try
+    {
+        auto const &timerEvent = *dynamic_cast<EventT<TimeoutInd> const &>(*e);
 
-        Segment const& currentHead = m_segments.front();
+        Segment const &currentHead = m_segments.front();
         Segment newHead = getNewHead(currentHead);
 
-        bool lost = checkIfGameIsLost(newHead);
+        bool lost = isHittingHimself(newHead);
 
-        if (not lost) {
-            if (std::make_pair(newHead.x, newHead.y) == m_foodPosition) {
+        if (not lost)
+        {
+            if (std::make_pair(newHead.x, newHead.y) == m_foodPosition)
+            {
                 m_scorePort.send(std::make_unique<EventT<ScoreInd>>());
                 m_foodPort.send(std::make_unique<EventT<FoodReq>>());
-            } else if (newHead.x < 0 or newHead.y < 0 or
-                       newHead.x >= m_mapDimension.first or
-                       newHead.y >= m_mapDimension.second) {
+            }
+            else if (isOutOfBounds(newHead))
+            {
                 m_scorePort.send(std::make_unique<EventT<LooseInd>>());
                 lost = true;
-            } else {
-                for (auto &segment : m_segments) {
-                    if (not --segment.ttl) {
+            }
+            else
+            {
+                for (auto &segment : m_segments)
+                {
+                    if (not --segment.ttl)
+                    {
                         DisplayInd l_evt;
                         l_evt.x = segment.x;
                         l_evt.y = segment.y;
@@ -118,7 +143,8 @@ void Controller::receive(std::unique_ptr<Event> e)
             }
         }
 
-        if (not lost) {
+        if (not lost)
+        {
             m_segments.push_front(newHead);
             DisplayInd placeNewHead;
             placeNewHead.x = newHead.x;
@@ -131,31 +157,43 @@ void Controller::receive(std::unique_ptr<Event> e)
                 std::remove_if(
                     m_segments.begin(),
                     m_segments.end(),
-                    [](auto const& segment){ return not (segment.ttl > 0); }),
+                    [](auto const &segment) { return not(segment.ttl > 0); }),
                 m_segments.end());
         }
-    } catch (std::bad_cast&) {
-        try {
-            auto direction = dynamic_cast<EventT<DirectionInd> const&>(*e)->direction;
+    }
+    catch (std::bad_cast &)
+    {
+        try
+        {
+            auto direction = dynamic_cast<EventT<DirectionInd> const &>(*e)->direction;
 
-            if ((m_currentDirection & 0b01) != (direction & 0b01)) {
+            if ((m_currentDirection & 0b01) != (direction & 0b01))
+            {
                 m_currentDirection = direction;
             }
-        } catch (std::bad_cast&) {
-            try {
-                auto receivedFood = *dynamic_cast<EventT<FoodInd> const&>(*e);
+        }
+        catch (std::bad_cast &)
+        {
+            try
+            {
+                auto receivedFood = *dynamic_cast<EventT<FoodInd> const &>(*e);
 
                 bool requestedFoodCollidedWithSnake = false;
-                for (auto const& segment : m_segments) {
-                    if (segment.x == receivedFood.x and segment.y == receivedFood.y) {
+                for (auto const &segment : m_segments)
+                {
+                    if (segment.x == receivedFood.x and segment.y == receivedFood.y)
+                    {
                         requestedFoodCollidedWithSnake = true;
                         break;
                     }
                 }
 
-                if (requestedFoodCollidedWithSnake) {
+                if (requestedFoodCollidedWithSnake)
+                {
                     m_foodPort.send(std::make_unique<EventT<FoodReq>>());
-                } else {
+                }
+                else
+                {
                     DisplayInd clearOldFood;
                     clearOldFood.x = m_foodPosition.first;
                     clearOldFood.y = m_foodPosition.second;
@@ -170,22 +208,29 @@ void Controller::receive(std::unique_ptr<Event> e)
                 }
 
                 m_foodPosition = std::make_pair(receivedFood.x, receivedFood.y);
-
-            } catch (std::bad_cast&) {
-                try {
-                    auto requestedFood = *dynamic_cast<EventT<FoodResp> const&>(*e);
+            }
+            catch (std::bad_cast &)
+            {
+                try
+                {
+                    auto requestedFood = *dynamic_cast<EventT<FoodResp> const &>(*e);
 
                     bool requestedFoodCollidedWithSnake = false;
-                    for (auto const& segment : m_segments) {
-                        if (segment.x == requestedFood.x and segment.y == requestedFood.y) {
+                    for (auto const &segment : m_segments)
+                    {
+                        if (segment.x == requestedFood.x and segment.y == requestedFood.y)
+                        {
                             requestedFoodCollidedWithSnake = true;
                             break;
                         }
                     }
 
-                    if (requestedFoodCollidedWithSnake) {
+                    if (requestedFoodCollidedWithSnake)
+                    {
                         m_foodPort.send(std::make_unique<EventT<FoodReq>>());
-                    } else {
+                    }
+                    else
+                    {
                         DisplayInd placeNewFood;
                         placeNewFood.x = requestedFood.x;
                         placeNewFood.y = requestedFood.y;
@@ -194,7 +239,9 @@ void Controller::receive(std::unique_ptr<Event> e)
                     }
 
                     m_foodPosition = std::make_pair(requestedFood.x, requestedFood.y);
-                } catch (std::bad_cast&) {
+                }
+                catch (std::bad_cast &)
+                {
                     throw UnexpectedEventException();
                 }
             }
