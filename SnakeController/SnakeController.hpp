@@ -52,6 +52,8 @@ private:
     Segment getNewHead(const Segment&);
     bool isHittingHimself(const Segment&);
     bool isOutOfBounds(const Segment&);
+
+    void newHeadCheck(bool& lost, const Segment& newHead);
 };
 
 } // namespace Snake
