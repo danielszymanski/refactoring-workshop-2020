@@ -239,12 +239,10 @@ namespace Snake
     {
         try
         {
-            // handleTimePassed(*dynamic_cast<EventT<TimeoutInd> const&>(*e));
-            // *dynamic_cast<EventT<TimeoutInd> const&>(*e)
             if (e->getMessageId() == 0x20)
-            {
                 handleTimePassed(*static_cast<EventT<TimeoutInd> const &>(*e));
-            }
+            else
+                throw std::bad_cast();
         }
         catch (std::bad_cast &)
         {
@@ -252,6 +250,8 @@ namespace Snake
             {
                 if (e->getMessageId() == 0x10)
                     handleDirectionChange(*static_cast<EventT<DirectionInd> const &>(*e));
+                else
+                    throw std::bad_cast();
             }
             catch (std::bad_cast &)
             {
@@ -259,6 +259,8 @@ namespace Snake
                 {
                     if (e->getMessageId() == 0x40)
                         handleFoodPositionChange(*static_cast<EventT<FoodInd> const &>(*e));
+                    else
+                        throw std::bad_cast();
                 }
                 catch (std::bad_cast &)
                 {
@@ -266,6 +268,8 @@ namespace Snake
                     {
                         if (e->getMessageId() == 0x42)
                             handleNewFood(*static_cast<EventT<FoodResp> const &>(*e));
+                        else
+                            throw std::bad_cast();
                     }
                     catch (std::bad_cast &)
                     {
